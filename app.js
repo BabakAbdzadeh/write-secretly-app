@@ -1,11 +1,12 @@
 //jshint esversion:6
 //  ---------------- requirments    ------------
 require('dotenv').config();
-const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
+const bcrypt = require('bcrypt');
 
-
+ // --------- framework initialization  ----------------------
+const express = require("express");
 const app = express();
 
 app.use(express.static("public"));
@@ -14,7 +15,11 @@ app.use(bodyParser.urlencoded({
   extended: true
 }));
 
- //  --------------- DB part  ---------------------
+//  ------------------ initialization variables ----------------
+const saltRounds = 10;
+
+
+ //  --------------- DB initialization  ------------------------
 
 const mongoose = require('mongoose');
 const encrypt = require('mongoose-encryption');
@@ -25,17 +30,11 @@ const userSchema = new mongoose.Schema({
   password: String
 });
 
-userSchema.plugin(encrypt, {secret: process.env.SECRET_KEY, encryptionFields: ['password']});
 
 const User = new mongoose.model('user', userSchema);
 
 
-
-
-
-
-
-//  ----------------- App ----------------------
+//  ------------------------ Application   ------------------------------
 app
 .get("/", (req, res)=>{
   res.render("home");
@@ -47,30 +46,42 @@ app
   res.render("register");
 })
 .post("/register", (req, res)=>{
-  const newUser = new User({
-    email : req.body.username ,
-    password: req.body.password
-  });
 
-  newUser.save((err)=>{
-    if(!err){
-      res.render("secrets");
-    }else{
-      console.log(err);
-    };
-  });
+  // Hashing and Salting
+  bcrypt.hash(req.body.password, saltRounds, function(err,hash){
+    const newUser = new User({
+      email : req.body.username,
+      password: hash
+    });
+      console.log(newUser);
+    newUser.save((err)=>{
+      if(!err){
+        res.render("secrets");
+      }else{
+        console.log(err);
+      };
+    });
+  })
 })
 .post("/login",(req, res)=>{
-  const user ={
+
+  const loginUser ={
     username : req.body.username,
     password: req.body.password
   };
-
-  User.findOne({email: user['username']}, (err, foundUser)=>{
+  User.findOne({email: loginUser['username']}, (err, foundUser)=>{
     if(!err){
+
+      console.log(foundUser);
       if(foundUser){
-        res.render("secrets");
-      }
+
+        bcrypt.compare(loginUser['password'], foundUser['password'], (err, result)=>{
+          if(result === true){
+  
+            res.render("secrets");
+          };
+        });
+      };
     }else{
       console.log(err);
     };
